@@ -1,0 +1,125 @@
+//apply plugin: 'com.android.application'
+apply plugin: 'com.android.library'
+android {
+    compileSdkVersion 28
+    defaultConfig {
+        //applicationId "com.qiyi.engine"
+        minSdkVersion 15
+        targetSdkVersion 28
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++11"
+            }
+        }
+
+        ndk {
+            //abiFilters "armeabi-v7a"
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+
+        sourceSets {
+            main {
+                jniLibs.srcDirs = ['../../../android/libs']
+            }
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.android.support:appcompat-v7:28.0.0'
+    implementation 'com.android.support.constraint:constraint-layout:1.1.3'
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'com.android.support.test:runner:1.0.2'
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+}
+
+
+task copySoToOutput_debug(type: Copy, description: 'Copy So to Output') {
+    from "${projectDir}/build/intermediates/cmake/debug/obj/"
+    into "${projectDir}/../../../output/android/"
+}
+task copySoToOutput_release(type: Copy, description: 'Copy So to Output') {
+    from "${projectDir}/build/intermediates/cmake/release/obj/"
+    into "${projectDir}/../../../output/android/"
+}
+
+
+def outputPath = "${projectDir}/../../../output/android"
+task buildJarToOutputDebug(type: Jar) {
+    archivesBaseName = 'engine'
+    from('build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/')
+    destinationDir = file("${outputPath}/jar/")
+    include 'com/qiyi/engine/*.class'
+    exclude 'com/qiyi/engine/R*.class'
+
+}
+
+task buildJarToOutputRelease(type: Jar) {
+    archivesBaseName = 'engine'
+    from('build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/')
+    destinationDir = file("${outputPath}/jar/")
+    include 'com/qiyi/engine/*.class'
+    exclude 'com/qiyi/engine/R*.class'
+}
+
+task copyJarToSDK(type: Copy, description: 'Copy jar to SDK') {
+    from "${outputPath}/jar/"
+    into "${projectDir}/../../../../engine_sdk/android/jar/"
+}
+
+task copySoToOutputDebug(type: Copy, description: 'Copy so to output') {
+    from "${projectDir}/build/intermediates/cmake/debug/obj/armeabi-v7a/libengine.so"
+    into "${outputPath}/lib/armeabi-v7a/"
+    from "${projectDir}/build/intermediates/cmake/debug/obj/x86/libengine.so"
+    into "${outputPath}/lib/x86/"
+}
+task copySoToOutputRelease(type: Copy, description: 'Copy so to output') {
+    from "${projectDir}/build/intermediates/transforms/stripDebugSymbol/release/0/lib/armeabi-v7a/libengine.so"
+    from("${projectDir}/build/intermediates/cmake/release/obj/armeabi-v7a/libengine.so") {
+        rename 'libengine.so', 'libengine_DebugSymbol.so'
+    }
+    into "${outputPath}/lib/armeabi-v7a/"
+
+    from "${projectDir}/build/intermediates/transforms/stripDebugSymbol/release/0/lib/x86/libengine.so"
+    from("${projectDir}/build/intermediates/cmake/release/obj/x86/libengine.so") {
+        rename 'libengine.so', 'libengine_DebugSymbol.so'
+    }
+    into "${outputPath}/lib/x86/"
+}
+
+task copySoToSDK(type: Copy, description: 'Copy so to SDK') {
+    from "${outputPath}/lib/armeabi-v7a/libengine.so"
+    from "${outputPath}/lib/armeabi-v7a/libengine_DebugSymbol.so"
+    into "${projectDir}/../../../../engine_sdk/android/libs/armeabi-v7a/"
+    from "${outputPath}/lib/x86/libengine.so"
+    from "${outputPath}/lib/x86/libengine_DebugSymbol.so"
+    into "${projectDir}/../../../../engine_sdk/android/libs/x86/"
+}
+
+afterEvaluate {
+    processDebugJavaRes.dependsOn buildJarToOutputDebug, copyJarToSDK
+    processReleaseJavaRes.dependsOn buildJarToOutputRelease, copyJarToSDK
+
+    transformNativeLibsWithStripDebugSymbolForDebug.doLast {
+        copySoToOutputDebug.execute()
+        copySoToSDK.execute()
+    }
+    transformNativeLibsWithStripDebugSymbolForRelease.doLast {
+        copySoToOutputRelease.execute()
+        copySoToSDK.execute()
+    }
+}

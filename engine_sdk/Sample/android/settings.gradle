@@ -1,0 +1,4 @@
+include ':app'
+
+include ':engine'
+project(':engine').projectDir = new File('./../../../engine/projects/android/app/')
